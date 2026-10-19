@@ -1,0 +1,53 @@
+[package]
+name = "openai-wire"
+version = "0.1.0"
+edition = "2024"
+description = "An async Rust client for OpenAI with typed requests, streaming, and realtime support"
+authors = ["meow2149 <maojiuyuqi794@gmail.com>"]
+repository = "https://github.com/meow2149/openai-wire"
+license = "MIT"
+readme = "README.md"
+documentation = "https://docs.rs/openai-wire"
+keywords = ["openai", "ai", "async", "sdk", "streaming"]
+categories = ["api-bindings", "asynchronous", "web-programming::http-client"]
+include = ["src/**", "examples/**", "docs/**", "Cargo.toml", "*.md", "LICENSE"]
+
+[workspace]
+
+[features]
+default = ["rustls", "webhooks"]
+rustls = ["reqwest/rustls", "tokio-tungstenite?/rustls-tls-webpki-roots"]
+webhooks = ["dep:base64", "dep:hmac", "dep:sha2"]
+websocket = ["dep:tokio-tungstenite", "dep:base64", "futures-util/sink"]
+
+[dependencies]
+async-stream = "0.3"
+base64 = { version = "0.23", optional = true }
+bytes = "1.12"
+futures-core = "0.3"
+futures-util = "0.3"
+hmac = { version = "0.13", optional = true }
+httpdate = "1.0"
+rand = "0.10"
+reqwest = { version = "0.13", default-features = false, features = ["json", "query", "stream", "multipart"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_urlencoded = "0.7"
+sha2 = { version = "0.11", optional = true }
+thiserror = "2.0"
+tokio = { version = "1.53", features = ["fs", "time"] }
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect"], optional = true }
+tokio-util = { version = "0.7", features = ["io"] }
+
+[dev-dependencies]
+tokio = { version = "1.53", features = ["macros", "rt-multi-thread"] }
+
+[package.metadata.docs.rs]
+all-features = true
+
+[[example]]
+name = "realtime"
+required-features = ["websocket"]
+
+[lints.rust]
+unsafe_code = "forbid"
