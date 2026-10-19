@@ -8,7 +8,6 @@ pub struct File {
     pub created_at: u64,
     pub filename: String,
     pub purpose: String,
-    #[serde(default)]
     pub expires_at: Option<u64>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,

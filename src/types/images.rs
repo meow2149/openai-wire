@@ -40,11 +40,8 @@ pub struct Images {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Image {
-    #[serde(default)]
     pub b64_json: Option<String>,
-    #[serde(default)]
     pub url: Option<String>,
-    #[serde(default)]
     pub revised_prompt: Option<String>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,

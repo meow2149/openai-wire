@@ -8,17 +8,12 @@ use std::collections::HashSet;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Page<T> {
     pub data: Vec<T>,
-    #[serde(default)]
     pub object: Option<String>,
     #[serde(default)]
     pub has_more: bool,
-    #[serde(default)]
     pub first_id: Option<String>,
-    #[serde(default)]
     pub last_id: Option<String>,
-    #[serde(default)]
     pub next_page: Option<String>,
-    #[serde(default)]
     pub next: Option<String>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
@@ -45,22 +40,28 @@ impl<T: DeserializeOwned + Send + 'static> Request<Page<T>> {
     ) -> impl Stream<Item = crate::Result<T>> + Send {
         let parameter = parameter.to_owned();
         async_stream::try_stream! {
-            if let Some(error) = self.take_error() { Err(error)?; }
-            let mut seen = HashSet::new();
-            for (key, value) in &self.query { if key == "after" || key == "page" || key == &parameter { seen.insert((key.clone(), value.clone())); } }
+            if let Some(error) = self.take_error() {
+                Err(error)?;
+            }
+            let mut seen: HashSet<_> = self.query.iter()
+                .filter(|(key, _)| ["after", "page", &parameter].contains(&key.as_str()))
+                .cloned().collect();
             loop {
                 let page = self.duplicate().cast::<Page<Value>>().send().await?;
                 let cursor = if page.has_more {
-                    if let Some(cursor) = page.next_page { Some(("page".to_owned(), cursor)) }
-                    else if let Some(cursor) = page.next.or(page.last_id)
-                        .or_else(|| page.data.last().and_then(|item| item.get("id")).and_then(Value::as_str).map(str::to_owned)) {
-                        Some((parameter.clone(), cursor))
-                    }
-                    else { Err(Error::Stream("paginated response has_more but no cursor".into()))?; None }
+                    let name = if page.next_page.is_some() { "page" } else { &parameter };
+                    let value = page.next_page.or(page.next).or(page.last_id)
+                        .or_else(|| page.data.last()?.get("id")?.as_str().map(str::to_owned))
+                        .ok_or_else(|| Error::Stream("paginated response has_more but no cursor".into()))?;
+                    Some((name.to_owned(), value))
                 } else { None };
-                for item in page.data { yield serde_json::from_value::<T>(item)?; }
+                for item in page.data {
+                    yield serde_json::from_value::<T>(item)?;
+                }
                 let Some((name, cursor)) = cursor else { break; };
-                if cursor.is_empty() || !seen.insert((name.clone(), cursor.clone())) { Err(Error::Stream("pagination repeated or returned an empty cursor".into()))?; }
+                if cursor.is_empty() || !seen.insert((name.clone(), cursor.clone())) {
+                    Err(Error::Stream("pagination repeated or returned an empty cursor".into()))?;
+                }
                 self.query.retain(|(key, _)| key != "after" && key != "before" && key != "page" && key != &parameter);
                 self.query.push((name, cursor));
             }

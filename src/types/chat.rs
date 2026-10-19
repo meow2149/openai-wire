@@ -5,15 +5,15 @@ use serde_json::{Map, Value, json};
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Message {
     pub role: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub content: Option<Value>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tool_calls: Vec<ToolCall>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub refusal: Option<String>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
@@ -127,7 +127,6 @@ pub struct ChatCompletion {
     pub created: u64,
     pub model: String,
     pub choices: Vec<Choice>,
-    #[serde(default)]
     pub usage: Option<Usage>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
@@ -153,7 +152,6 @@ pub struct ChatChunk {
     pub created: u64,
     pub model: String,
     pub choices: Vec<ChunkChoice>,
-    #[serde(default)]
     pub usage: Option<Usage>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
@@ -168,11 +166,8 @@ pub struct ChunkChoice {
 }
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Delta {
-    #[serde(default)]
     pub role: Option<String>,
-    #[serde(default)]
     pub content: Option<String>,
-    #[serde(default)]
     pub tool_calls: Option<Vec<Value>>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,

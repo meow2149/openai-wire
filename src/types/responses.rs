@@ -134,19 +134,19 @@ impl ResponseRequest {
 pub struct OutputItem {
     #[serde(rename = "type")]
     pub kind: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub role: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub content: Option<Vec<Content>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub call_id: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub arguments: Option<String>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
@@ -165,9 +165,9 @@ impl OutputItem {
 pub struct Content {
     #[serde(rename = "type")]
     pub kind: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub refusal: Option<String>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
@@ -182,11 +182,8 @@ pub struct Response {
     pub status: String,
     #[serde(default)]
     pub output: Vec<OutputItem>,
-    #[serde(default)]
     pub usage: Option<Usage>,
-    #[serde(default)]
     pub error: Option<Value>,
-    #[serde(default)]
     pub incomplete_details: Option<Value>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
@@ -222,17 +219,17 @@ impl Response {
 pub struct ResponseEvent {
     #[serde(rename = "type")]
     pub kind: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub delta: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub response: Option<Response>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub sequence_number: Option<u64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub output_index: Option<u64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub content_index: Option<u64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub item: Option<OutputItem>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,

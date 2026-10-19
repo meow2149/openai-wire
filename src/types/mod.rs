@@ -18,7 +18,6 @@ use serde_json::{Map, Value};
 pub struct Deleted {
     pub id: String,
     pub deleted: bool,
-    #[serde(default)]
     pub object: Option<String>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
@@ -28,13 +27,13 @@ pub struct Deleted {
 /// remain available in `extra`.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Usage {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub input_tokens: Option<u64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub output_tokens: Option<u64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub prompt_tokens: Option<u64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub completion_tokens: Option<u64>,
     pub total_tokens: u64,
     #[serde(flatten)]

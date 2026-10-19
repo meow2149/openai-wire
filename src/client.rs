@@ -258,7 +258,7 @@ fn sensitive_value(value: &str) -> Result<HeaderValue> {
 }
 
 /// Encode an opaque identifier as one URL path segment.
-pub fn encode_segment(value: &str) -> Result<String> {
+pub(crate) fn encode_segment(value: &str) -> Result<String> {
     if value.is_empty() || matches!(value, "." | "..") {
         return Err(Error::InvalidRequest(
             "identifier must be nonempty and cannot be a dot segment".into(),

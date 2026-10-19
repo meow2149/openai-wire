@@ -85,9 +85,9 @@ impl Multipart {
         self.fields.push((name.into(), Field::File(file)));
         self
     }
-    pub(crate) fn set_text(mut self, name: String, value: String) -> Self {
+    pub(crate) fn set_text(&mut self, name: String, value: String) {
         self.fields.retain(|(key, _)| key != &name);
-        self.text(name, value)
+        self.fields.push((name, Field::Text(value)));
     }
     pub(crate) async fn form(&self) -> Result<Form> {
         let mut form = Form::new();

@@ -14,11 +14,9 @@ pub struct ApiError {
     pub status: Option<StatusCode>,
     #[serde(default)]
     pub message: String,
-    #[serde(rename = "type", default)]
+    #[serde(rename = "type")]
     pub kind: Option<String>,
-    #[serde(default)]
     pub code: Option<Value>,
-    #[serde(default)]
     pub param: Option<Value>,
     #[serde(skip)]
     pub request_id: Option<String>,
@@ -59,24 +57,22 @@ impl ApiError {
             .get("error")
             .filter(|v| v.is_object())
             .unwrap_or(&value);
-        let mut error: Self = serde_json::from_value(details.clone()).unwrap_or_else(|_| Self {
-            status: None,
-            message: "Unstructured API error".into(),
-            kind: None,
-            code: None,
-            param: None,
-            request_id: None,
-            headers: HeaderMap::new(),
-            body: Vec::new(),
-        });
-        error.status = status;
-        error.request_id = headers
-            .get("x-request-id")
-            .and_then(|v| v.to_str().ok())
-            .map(str::to_owned);
-        error.headers = headers;
-        error.body = body.to_vec();
-        error
+        Self {
+            status,
+            message: details["message"]
+                .as_str()
+                .unwrap_or("Unstructured API error")
+                .to_owned(),
+            kind: details["type"].as_str().map(str::to_owned),
+            code: details.get("code").filter(|v| !v.is_null()).cloned(),
+            param: details.get("param").filter(|v| !v.is_null()).cloned(),
+            request_id: headers
+                .get("x-request-id")
+                .and_then(|v| v.to_str().ok())
+                .map(str::to_owned),
+            headers,
+            body: body.to_vec(),
+        }
     }
 }
 

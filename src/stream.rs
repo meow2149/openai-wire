@@ -24,6 +24,14 @@ impl Event {
     pub fn json<T: DeserializeOwned>(&self) -> Result<T> {
         Ok(serde_json::from_str(&self.data)?)
     }
+
+    fn is_error(&self) -> bool {
+        self.event == "error"
+            || self.json::<serde_json::Value>().ok().is_some_and(|value| {
+                value.get("type").and_then(|v| v.as_str()) == Some("error")
+                    || value.get("error").is_some_and(|v| !v.is_null())
+            })
+    }
 }
 
 /// A stream with HTTP metadata. Drop it to cancel; events are never reconnected
@@ -39,7 +47,6 @@ impl<T> EventStream<T> {
         self.headers.get("x-request-id")?.to_str().ok()
     }
 }
-impl<T> Unpin for EventStream<T> {}
 impl<T> Stream for EventStream<T> {
     type Item = Result<T>;
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
@@ -65,16 +72,21 @@ pub(crate) fn parse_events(response: reqwest::Response) -> EventStream<Event> {
         while let Some(chunk) = bytes.next().await {
             for byte in chunk? {
                 if let Some(event) = decoder.push(byte)? {
-                    if event.data.trim() == "[DONE]" { return; }
-                    if event.event == "error" || serde_json::from_str::<serde_json::Value>(&event.data)
-                        .ok().is_some_and(|v| v.get("type").and_then(|v| v.as_str()) == Some("error") || v.get("error").is_some_and(|e| !e.is_null())) {
-                        Err(Error::Api(Box::new(ApiError::from_body(None, error_headers.clone(), event.data.as_bytes()))))?;
+                    if event.data.trim() == "[DONE]" {
+                        return;
+                    }
+                    if event.is_error() {
+                        Err(Error::Api(Box::new(ApiError::from_body(
+                            None, error_headers.clone(), event.data.as_bytes(),
+                        ))))?;
                     }
                     yield event;
                 }
             }
         }
-        if decoder.has_pending_data() { Err(Error::Stream("connection ended inside an SSE event".into()))?; }
+        if decoder.has_pending_data() {
+            Err(Error::Stream("connection ended inside an SSE event".into()))?;
+        }
     };
     EventStream {
         status,
@@ -84,12 +96,17 @@ pub(crate) fn parse_events(response: reqwest::Response) -> EventStream<Event> {
 }
 
 pub(crate) fn decode_events<T: DeserializeOwned + Send + 'static>(
-    mut events: EventStream<Event>,
+    events: EventStream<Event>,
 ) -> EventStream<T> {
-    let status = events.status;
-    let headers = events.headers.clone();
+    let EventStream {
+        status,
+        headers,
+        inner: mut events,
+    } = events;
     let inner = async_stream::try_stream! {
-        while let Some(event) = events.next().await { yield event?.json::<T>()?; }
+        while let Some(event) = events.next().await {
+            yield event?.json::<T>()?;
+        }
     };
     EventStream {
         status,
@@ -105,7 +122,6 @@ struct Decoder {
     event: String,
     id: Option<String>,
     retry: Option<u64>,
-    has_data: bool,
     skip_lf: bool,
     started: bool,
 }
@@ -136,7 +152,7 @@ impl Decoder {
             line
         };
         if line.is_empty() {
-            let event = if self.has_data {
+            let event = if !self.data.is_empty() {
                 self.data.pop();
                 Some(Event {
                     event: if self.event.is_empty() {
@@ -153,7 +169,6 @@ impl Decoder {
             };
             self.event.clear();
             self.data.clear();
-            self.has_data = false;
             return Ok(event);
         }
         if line.starts_with(':') {
@@ -165,7 +180,6 @@ impl Decoder {
             "data" => {
                 self.data.push_str(value);
                 self.data.push('\n');
-                self.has_data = true;
             }
             "event" => {
                 self.event = value.into();
@@ -181,6 +195,6 @@ impl Decoder {
         Ok(None)
     }
     fn has_pending_data(&self) -> bool {
-        self.has_data || !self.line.is_empty()
+        !self.data.is_empty() || !self.line.is_empty()
     }
 }

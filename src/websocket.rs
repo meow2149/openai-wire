@@ -17,13 +17,15 @@ use std::{
 use tokio::net::TcpStream;
 use tokio_tungstenite::{
     MaybeTlsStream, WebSocketStream,
-    tungstenite::{Message, client::IntoClientRequest, protocol::WebSocketConfig},
+    tungstenite::{
+        Error as SocketError, Message, client::IntoClientRequest, protocol::WebSocketConfig,
+    },
 };
 
 type Socket = WebSocketStream<MaybeTlsStream<TcpStream>>;
 
-impl From<tokio_tungstenite::tungstenite::Error> for Error {
-    fn from(error: tokio_tungstenite::tungstenite::Error) -> Self {
+impl From<SocketError> for Error {
+    fn from(error: SocketError) -> Self {
         Self::WebSocket(Box::new(error))
     }
 }
@@ -123,7 +125,7 @@ impl Connection {
             Sender(sink),
             Receiver {
                 stream,
-                ended: false,
+                ended: self.ended,
             },
         )
     }
@@ -131,29 +133,8 @@ impl Connection {
 impl Stream for Connection {
     type Item = Result<Value>;
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        if self.ended {
-            return Poll::Ready(None);
-        }
-        loop {
-            match Pin::new(&mut self.socket).poll_next(cx) {
-                Poll::Ready(Some(Ok(Message::Text(text)))) => {
-                    return Poll::Ready(Some(serde_json::from_str(&text).map_err(Error::from)));
-                }
-                Poll::Ready(Some(Ok(Message::Binary(bytes)))) => {
-                    return Poll::Ready(Some(serde_json::from_slice(&bytes).map_err(Error::from)));
-                }
-                Poll::Ready(Some(Ok(Message::Close(_)))) | Poll::Ready(None) => {
-                    self.ended = true;
-                    return Poll::Ready(None);
-                }
-                Poll::Ready(Some(Ok(_))) => continue,
-                Poll::Ready(Some(Err(error))) => {
-                    self.ended = true;
-                    return Poll::Ready(Some(Err(error.into())));
-                }
-                Poll::Pending => return Poll::Pending,
-            }
-        }
+        let Self { socket, ended, .. } = &mut *self;
+        poll_json(socket, ended, cx)
     }
 }
 
@@ -177,28 +158,37 @@ pub struct Receiver {
 impl Stream for Receiver {
     type Item = Result<Value>;
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        if self.ended {
-            return Poll::Ready(None);
-        }
-        loop {
-            match Pin::new(&mut self.stream).poll_next(cx) {
-                Poll::Ready(Some(Ok(Message::Text(text)))) => {
-                    return Poll::Ready(Some(serde_json::from_str(&text).map_err(Error::from)));
-                }
-                Poll::Ready(Some(Ok(Message::Binary(bytes)))) => {
-                    return Poll::Ready(Some(serde_json::from_slice(&bytes).map_err(Error::from)));
-                }
-                Poll::Ready(Some(Ok(Message::Close(_)))) | Poll::Ready(None) => {
-                    self.ended = true;
-                    return Poll::Ready(None);
-                }
-                Poll::Ready(Some(Ok(_))) => continue,
-                Poll::Ready(Some(Err(error))) => {
-                    self.ended = true;
-                    return Poll::Ready(Some(Err(error.into())));
-                }
-                Poll::Pending => return Poll::Pending,
+        let Self { stream, ended } = &mut *self;
+        poll_json(stream, ended, cx)
+    }
+}
+
+fn poll_json(
+    stream: &mut (impl Stream<Item = std::result::Result<Message, SocketError>> + Unpin),
+    ended: &mut bool,
+    cx: &mut Context<'_>,
+) -> Poll<Option<Result<Value>>> {
+    if *ended {
+        return Poll::Ready(None);
+    }
+    loop {
+        match Pin::new(&mut *stream).poll_next(cx) {
+            Poll::Ready(Some(Ok(Message::Text(text)))) => {
+                return Poll::Ready(Some(serde_json::from_str(&text).map_err(Error::from)));
             }
+            Poll::Ready(Some(Ok(Message::Binary(bytes)))) => {
+                return Poll::Ready(Some(serde_json::from_slice(&bytes).map_err(Error::from)));
+            }
+            Poll::Ready(Some(Ok(Message::Close(_)))) | Poll::Ready(None) => {
+                *ended = true;
+                return Poll::Ready(None);
+            }
+            Poll::Ready(Some(Ok(_))) => continue,
+            Poll::Ready(Some(Err(error))) => {
+                *ended = true;
+                return Poll::Ready(Some(Err(error.into())));
+            }
+            Poll::Pending => return Poll::Pending,
         }
     }
 }

@@ -30,11 +30,8 @@ pub struct Batch {
     pub completion_window: String,
     pub status: String,
     pub created_at: u64,
-    #[serde(default)]
     pub output_file_id: Option<String>,
-    #[serde(default)]
     pub error_file_id: Option<String>,
-    #[serde(default)]
     pub request_counts: Option<RequestCounts>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,

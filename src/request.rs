@@ -62,9 +62,7 @@ impl<T> Request<T> {
     }
 
     pub(crate) fn fail(mut self, error: Error) -> Self {
-        if self.error.is_none() {
-            self.error = Some(error);
-        }
+        self.error.get_or_insert(error);
         self
     }
 
@@ -106,13 +104,10 @@ impl<T> Request<T> {
 
     /// Add or replace a text field in a multipart request.
     pub fn form_field(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
-        match std::mem::replace(&mut self.body, Body::Empty) {
-            Body::Multipart(form) => {
-                self.body = Body::Multipart(form.set_text(name.into(), value.into()))
-            }
+        match &mut self.body {
+            Body::Multipart(form) => form.set_text(name.into(), value.into()),
             Body::Empty => self.body = Body::Multipart(Multipart::new().text(name, value)),
-            body => {
-                self.body = body;
+            _ => {
                 return self.fail(Error::InvalidRequest(
                     "form_field() requires multipart data".into(),
                 ));
@@ -125,10 +120,8 @@ impl<T> Request<T> {
     pub fn query(mut self, query: impl Serialize) -> Self {
         match serde_urlencoded::to_string(query) {
             Ok(query) => self.query.extend(
-                reqwest::Url::parse(&format!("http://localhost/?{query}"))
-                    .expect("URL-encoded query is valid")
-                    .query_pairs()
-                    .into_owned(),
+                serde_urlencoded::from_str::<Vec<(String, String)>>(&query)
+                    .expect("URL-encoded query is valid"),
             ),
             Err(_) => {
                 self = self.fail(Error::InvalidRequest(
@@ -188,17 +181,11 @@ impl<T> Request<T> {
     where
         T: DeserializeOwned,
     {
-        let response = self.raw().await?;
-        let status = response.status();
-        let headers = response.headers().clone();
-        let bytes = response.bytes().await?;
+        let response = self.bytes().await?;
+        let bytes = &response.data;
         // Empty successful responses are represented by JSON null (for example `()`).
-        let data = serde_json::from_slice(if bytes.is_empty() { b"null" } else { &bytes })?;
-        Ok(ApiResponse {
-            data,
-            status,
-            headers,
-        })
+        let data = serde_json::from_slice(if bytes.is_empty() { b"null" } else { bytes })?;
+        Ok(response.map(|_| data))
     }
 
     /// Download the body as bytes, retaining the response metadata.
@@ -234,16 +221,13 @@ impl<T> Request<T> {
 
     fn enable_stream(mut self) -> Self {
         if self.method == Method::POST {
-            self = match std::mem::replace(&mut self.body, Body::Empty) {
+            match &mut self.body {
                 Body::Multipart(form) => {
-                    self.multipart(form.set_text("stream".into(), "true".into()))
+                    form.set_text("stream".into(), "true".into());
                 }
-                Body::Bytes(bytes) => self.body(bytes),
-                body => {
-                    self.body = body;
-                    self.field("stream", true)
-                }
-            };
+                Body::Bytes(_) => {}
+                _ => self = self.field("stream", true),
+            }
         }
         self
     }
